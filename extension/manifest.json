@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Voxium",
+  "version": "0.6.0",
+  "description": "Meeting intelligence — record, transcribe, analyze",
+  "permissions": [
+    "tabCapture",
+    "activeTab",
+    "offscreen",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ],
+  "action": {},
+  "background": {
+    "service_worker": "service-worker.js"
+  }
+}
