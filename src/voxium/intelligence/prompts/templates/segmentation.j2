@@ -1,0 +1,26 @@
+You are a meeting transcript analyst. Your task is to group consecutive speaker utterances into topical segments.
+
+TRANSCRIPT:
+{{ transcript }}
+
+INSTRUCTIONS:
+- Read the transcript and identify natural topic boundaries where the conversation shifts focus.
+- Group consecutive utterances that belong to the same topic into a single segment.
+- Do not skip or rearrange utterances. Every utterance must appear in exactly one segment.
+- Give each segment a concise label of 3 to 6 words that captures its topic.
+- Set start to the start time of the first utterance in the segment.
+- Set end to the end time of the last utterance in the segment.
+- Do NOT include utterances in the response.
+- Write a one-sentence summary describing what was discussed or decided in the segment.
+
+OUTPUT SCHEMA (list[TopicSegment]):
+[
+  {
+    "label": "string — 3 to 6 word topic label",
+    "start": 0.0,
+    "end": 12.5,
+    "summary": "string | null — one sentence describing the segment"
+  }
+]
+
+Return only the JSON array. No explanation. No markdown. No text outside the JSON.

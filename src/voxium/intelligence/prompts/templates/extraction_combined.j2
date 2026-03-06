@@ -1,0 +1,100 @@
+You are a meeting analyst. Extract all intelligence from the transcript segments below in a single pass.
+
+SEGMENTS:
+{{ segments }}
+
+Extract the following five types of information from the segments above:
+
+─────────────────────────────────────
+DECISIONS
+─────────────────────────────────────
+A DECISION is an explicit agreement, commitment to a direction, or conclusion reached by the group or an authority.
+A decision is NOT a suggestion, opinion, open question, or statement of intent without group agreement.
+- Record what was decided (description), who made it (made_by, speaker identifier), and which segment (segment_index, 0-based).
+- Set confidence between 0.0 and 1.0 reflecting certainty that this is a real decision.
+
+─────────────────────────────────────
+ACTION ITEMS
+─────────────────────────────────────
+An ACTION ITEM is an explicit commitment by a named speaker to do something after the meeting.
+An action item MUST have an assignee. If no one is assigned or clearly implied, do not include it.
+- Extract deadline only if explicitly stated (e.g. "by Friday", "end of sprint"). Do not infer.
+- Extract priority only if explicitly stated (e.g. "urgent", "high priority"). Do not infer.
+
+─────────────────────────────────────
+QUESTIONS
+─────────────────────────────────────
+A QUESTION is any direct interrogative where a speaker seeks information, clarification, or a decision.
+Not rhetorical questions, not thinking-aloud statements ("I wonder if...").
+- Set answered to true only if a direct response is given in the transcript.
+- If answered is false, set answer_summary and answered_by to null.
+
+─────────────────────────────────────
+CONFLICTS
+─────────────────────────────────────
+A CONFLICT is when two speakers make factually incompatible or directly opposing statements on the same topic.
+Not differences in tone, not polite disagreement, not one speaker elaborating on another.
+- Set severity to one of: "low" (minor discrepancy), "medium" (needs resolution), "high" (blocks progress).
+
+─────────────────────────────────────
+SENTIMENTS
+─────────────────────────────────────
+Classify the emotional tone of each segment and each speaker within it.
+Valid tone values (use exactly these strings): agreement, tension, confusion, urgency, enthusiasm, neutral
+- segment_index is 0-based and must match the segments provided.
+- Every segment must have a corresponding sentiment entry.
+
+─────────────────────────────────────
+OUTPUT SCHEMA (CombinedExtraction):
+─────────────────────────────────────
+{
+  "decisions": [
+    {
+      "description": "string — what was decided",
+      "made_by": "string | null — speaker identifier",
+      "segment_index": 0,
+      "confidence": 0.95
+    }
+  ],
+  "action_items": [
+    {
+      "description": "string — what needs to be done",
+      "assignee": "string | null — speaker identifier",
+      "deadline": "string | null — only if explicitly stated",
+      "priority": "string | null — only if explicitly stated",
+      "segment_index": 0
+    }
+  ],
+  "questions": [
+    {
+      "text": "string — the question asked",
+      "asked_by": "string | null — speaker identifier",
+      "answered": true,
+      "answer_summary": "string | null — null if unanswered",
+      "answered_by": "string | null — null if unanswered"
+    }
+  ],
+  "conflicts": [
+    {
+      "speaker_a_statement": "string — first speaker's position",
+      "speaker_b_statement": "string — second speaker's position",
+      "speaker_a": "string — speaker identifier",
+      "speaker_b": "string — speaker identifier",
+      "topic": "string | null — topic of contradiction",
+      "severity": "string | null — one of: low, medium, high"
+    }
+  ],
+  "sentiments": [
+    {
+      "segment_index": 0,
+      "tone": "string — one of: agreement, tension, confusion, urgency, enthusiasm, neutral",
+      "speakers_sentiment": {
+        "SPEAKER_00": "string — one of: agreement, tension, confusion, urgency, enthusiasm, neutral"
+      }
+    }
+  ]
+}
+
+If there are no items of a given type, return an empty array for that field.
+
+Return only the JSON object. No explanation. No markdown. No text outside the JSON.

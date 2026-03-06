@@ -16,6 +16,8 @@ dependencies = [
     "torch>=2.8.0,<2.9",
     "torchaudio>=2.8.0,<2.9",
     "whisperx>=3.8.1",
+    "openai>=2.25.0",
+    "langgraph>=1.0.10",
 ]
 
 [build-system]

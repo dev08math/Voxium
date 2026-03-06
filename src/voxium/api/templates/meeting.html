@@ -6,110 +6,868 @@
     <title>Voxium — Meeting {{ meeting_id }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             background: #060606;
             color: #e0e0e0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             padding: 2rem;
+            min-height: 100vh;
         }
-        h1 {
+
+        /* ── Header ─────────────────────────────── */
+        .page-header {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+        }
+
+        .page-title-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+            font-weight: 700;
             color: #00d4aa;
-            font-size: 1.4rem;
-            margin-bottom: 1.5rem;
         }
-        #status {
+
+        .page-title span { color: #e0e0e0; }
+
+        .btn-transcript {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            color: #555;
+            background: transparent;
+            border: 1px solid #222;
+            border-radius: 20px;
+            padding: 0.2rem 0.75rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: color 0.15s, border-color 0.15s;
+        }
+
+        .btn-transcript:hover { color: #00d4aa; border-color: #00d4aa; }
+        .btn-transcript.active { color: #00d4aa; border-color: #00d4aa; }
+
+        .page-meta {
+            font-size: 0.8rem;
+            color: #555;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .summary-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .summary-pill {
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: #0e0e0e;
+            border: 1px solid #1e1e1e;
+            border-radius: 20px;
+            padding: 0.2rem 0.65rem;
+            color: #aaa;
+        }
+
+        .summary-pill b { color: #00d4aa; }
+
+        /* ── Loading ─────────────────────────────── */
+        #loading {
+            max-width: 1400px;
+            margin: 3rem auto 0;
+        }
+
+        .loading-spinner {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             color: #888;
-            margin-bottom: 1.5rem;
             font-size: 0.9rem;
+            margin-bottom: 1.5rem;
         }
-        #status.error { color: #ff4444; }
-        #status.complete { color: #00d4aa; }
-        #transcript {
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #1e1e1e;
+            border-top-color: #00d4aa;
+            border-radius: 50%;
+            animation: spin 0.75s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .pipeline-nodes {
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 0.4rem;
         }
-        .utterance {
+
+        .pipeline-node {
             display: flex;
-            gap: 1rem;
-            padding: 0.6rem 0;
-            border-bottom: 1px solid #1a1a1a;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+            color: #444;
         }
-        .timestamp {
-            font-family: 'Courier New', monospace;
+
+        .node-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #1e1e1e;
+            flex-shrink: 0;
+        }
+
+        .pipeline-node.done   { color: #00d4aa; }
+        .pipeline-node.done .node-dot { background: #00d4aa; }
+        .pipeline-node.active { color: #e0e0e0; }
+        .pipeline-node.active .node-dot { background: #e0e0e0; animation: pulse 1s ease-in-out infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        /* ── Error ───────────────────────────────── */
+        #error-box {
+            display: none;
+            max-width: 1400px;
+            margin: 2rem auto 0;
+            background: #1a0808;
+            border: 1px solid #3a1010;
+            border-radius: 6px;
+            padding: 1rem 1.2rem;
+            color: #ff6b6b;
+            font-size: 0.88rem;
+        }
+
+        /* ── Layout grid ─────────────────────────── */
+        #content {
+            display: none;
+            max-width: 1400px;
+            margin: 0 auto;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        #content.split {
+            display: grid;
+            grid-template-columns: 35fr 65fr;
+        }
+
+        #content.single {
+            display: block;
+        }
+
+        /* ── Left panel: raw transcript ──────────── */
+        #left-panel {
+            display: none;
+        }
+
+        #content.split #left-panel {
+            display: block;
+        }
+
+        .transcript-panel {
+            position: sticky;
+            top: 2rem;
+            max-height: calc(100vh - 8rem);
+            overflow-y: auto;
+            background: #090909;
+            border: 1px solid #181818;
+            border-radius: 6px;
+            padding: 1rem;
+            scrollbar-width: thin;
+            scrollbar-color: #1e1e1e #060606;
+        }
+
+        .transcript-panel::-webkit-scrollbar { width: 4px; }
+        .transcript-panel::-webkit-scrollbar-track { background: #060606; }
+        .transcript-panel::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+        .transcript-panel-header {
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
             color: #00d4aa;
-            font-size: 0.8rem;
+            border-bottom: 1px solid #141414;
+            padding-bottom: 0.45rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .raw-utterance {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.32rem 0;
+            border-bottom: 1px solid #0e0e0e;
+            align-items: baseline;
+        }
+        .raw-utterance:last-child { border-bottom: none; }
+
+        .raw-time {
+            font-family: 'Courier New', monospace;
+            color: #333;
+            font-size: 0.68rem;
+            min-width: 4.5rem;
+            flex-shrink: 0;
+        }
+
+        .raw-speaker {
+            color: #00d4aa;
+            font-weight: 600;
+            font-size: 0.75rem;
             min-width: 6rem;
             flex-shrink: 0;
-            padding-top: 0.15rem;
         }
-        .speaker {
-            color: #aaa;
+
+        .raw-text {
+            color: #999;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        /* ── Right panel: intelligence ───────────── */
+        #right-panel { min-width: 0; }
+
+        .section { margin-bottom: 2.5rem; }
+
+        .section-header {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #00d4aa;
+            border-bottom: 1px solid #141414;
+            padding-bottom: 0.45rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty {
+            color: #333;
+            font-size: 0.83rem;
+            font-style: italic;
+        }
+
+        /* ── Cards ───────────────────────────────── */
+        .card {
+            background: #0c0c0c;
+            border: 1px solid #181818;
+            border-radius: 6px;
+            padding: 0.85rem 1rem;
+            margin-bottom: 0.55rem;
+        }
+
+        .card-body {
+            font-size: 0.92rem;
+            color: #e0e0e0;
+            line-height: 1.45;
+            margin-bottom: 0.4rem;
+        }
+
+        .card-footer {
+            font-size: 0.75rem;
+            color: #555;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .card-footer .accent { color: #00d4aa; }
+
+        /* ── Badges ──────────────────────────────── */
+        .badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+        }
+
+        .badge-green  { background: #0a2018; color: #00d4aa; }
+        .badge-red    { background: #200a0a; color: #ff6b6b; }
+        .badge-yellow { background: #201800; color: #ffc107; }
+        .badge-orange { background: #201000; color: #ff9800; }
+        .badge-high   { background: #200808; color: #ff4444; }
+
+        /* ── Segments ────────────────────────────── */
+        .segment {
+            background: #090909;
+            border: 1px solid #181818;
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+        }
+
+        .segment-toggle {
+            width: 100%;
+            background: #101010;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 0.7rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            text-align: left;
+        }
+
+        .segment-toggle:hover { background: #141414; }
+
+        .seg-left { display: flex; align-items: center; gap: 0.6rem; }
+
+        .seg-chevron {
+            font-size: 0.6rem;
+            color: #444;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .segment.open .seg-chevron { transform: rotate(90deg); }
+
+        .seg-label {
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.88rem;
+            color: #e0e0e0;
+        }
+
+        .seg-time {
+            font-family: 'Courier New', monospace;
+            font-size: 0.72rem;
+            color: #00d4aa;
+            white-space: nowrap;
+        }
+
+        .seg-summary {
+            padding: 0.45rem 1rem;
+            font-size: 0.8rem;
+            color: #666;
+            font-style: italic;
+            border-bottom: 1px solid #141414;
+        }
+
+        .utterances { display: none; }
+        .segment.open .utterances { display: block; }
+
+        .utterance {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.38rem 1rem;
+            border-bottom: 1px solid #0e0e0e;
+            align-items: baseline;
+        }
+        .utterance:last-child { border-bottom: none; }
+
+        .utt-time {
+            font-family: 'Courier New', monospace;
+            color: #333;
+            font-size: 0.7rem;
             min-width: 5rem;
             flex-shrink: 0;
-            padding-top: 0.15rem;
         }
-        .text {
-            color: #e0e0e0;
+
+        .utt-speaker {
+            color: #00d4aa;
+            font-weight: 600;
+            font-size: 0.78rem;
+            min-width: 7rem;
+            flex-shrink: 0;
+        }
+
+        .utt-text {
+            color: #bbb;
+            font-size: 0.86rem;
             line-height: 1.5;
-            font-size: 0.95rem;
         }
+
+        /* ── Action Items Table ──────────────────── */
+        .ai-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.84rem;
+        }
+
+        .ai-table th {
+            text-align: left;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #444;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .ai-table td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid #111;
+            color: #ccc;
+            vertical-align: top;
+        }
+
+        .ai-table tr:last-child td { border-bottom: none; }
+        .ai-table td:first-child { color: #e0e0e0; }
+        .ai-table .null-val { color: #333; }
+
+        /* ── Confidence bar ──────────────────────── */
+        .conf-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .conf-track {
+            flex: 1;
+            height: 3px;
+            background: #1a1a1a;
+            border-radius: 2px;
+            overflow: hidden;
+            max-width: 80px;
+        }
+
+        .conf-fill {
+            height: 100%;
+            background: #00d4aa;
+            border-radius: 2px;
+        }
+
+        .conf-pct { font-size: 0.75rem; color: #00d4aa; }
+
+        /* ── Conflicts ───────────────────────────── */
+        .conflict-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+            margin-top: 0.6rem;
+        }
+
+        .conflict-side {
+            background: #080808;
+            border: 1px solid #1a1a1a;
+            border-radius: 4px;
+            padding: 0.6rem 0.75rem;
+        }
+
+        .conflict-spk {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #00d4aa;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            margin-bottom: 0.3rem;
+        }
+
+        .conflict-stmt {
+            font-size: 0.84rem;
+            color: #ccc;
+            line-height: 1.4;
+        }
+
+        /* ── Sentiment ───────────────────────────── */
+        .tone-chip {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+        }
+        .tone-agreement  { background: #0a2018; color: #00d4aa; }
+        .tone-tension    { background: #200a0a; color: #ff6b6b; }
+        .tone-confusion  { background: #0e0e20; color: #8888ff; }
+        .tone-urgency    { background: #201000; color: #ffaa00; }
+        .tone-enthusiasm { background: #102000; color: #aadd00; }
+        .tone-neutral    { background: #141414; color: #777; }
+
+        .speaker-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .speaker-tag {
+            font-size: 0.72rem;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .speaker-name { color: #888; }
     </style>
 </head>
 <body>
-    <h1>Meeting {{ meeting_id }}</h1>
-    <div id="status">Loading...</div>
-    <div id="transcript"></div>
+
+    <div class="page-header">
+        <div class="page-title-row">
+            <div class="page-title">Voxium <span>/ {{ meeting_id }}</span></div>
+            <button class="btn-transcript" id="btn-transcript" onclick="toggleTranscript()" style="display:none">
+                Raw Transcript
+            </button>
+        </div>
+        <div class="page-meta" id="page-meta"></div>
+        <div class="summary-bar" id="summary-bar"></div>
+    </div>
+
+    <div id="loading">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <span>Running intelligence pipeline&hellip;</span>
+        </div>
+        <div class="pipeline-nodes" id="pipeline-nodes">
+            <div class="pipeline-node" id="node-segmentation">
+                <div class="node-dot"></div> Segmentation
+            </div>
+            <div class="pipeline-node" id="node-extractor">
+                <div class="node-dot"></div> Extraction
+            </div>
+            <div class="pipeline-node" id="node-output_generator">
+                <div class="node-dot"></div> Output generation
+            </div>
+        </div>
+    </div>
+
+    <div id="error-box"></div>
+
+    <div id="content">
+        <div id="left-panel">
+            <div class="transcript-panel">
+                <div class="transcript-panel-header">Raw Transcript</div>
+                <div id="raw-transcript"></div>
+            </div>
+        </div>
+
+        <div id="right-panel">
+            <div class="section">
+                <div class="section-header">Segments</div>
+                <div id="segments-list"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">Questions</div>
+                <div id="questions-list"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">Action Items</div>
+                <div id="action-items-list"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">Decisions</div>
+                <div id="decisions-list"></div>
+            </div>
+
+            <div class="section" id="conflicts-section" style="display:none">
+                <div class="section-header">Conflicts</div>
+                <div id="conflicts-list"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">Sentiment</div>
+                <div id="sentiment-list"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const meetingId = "{{ meeting_id }}";
-        const statusEl = document.getElementById("status");
-        const transcriptEl = document.getElementById("transcript");
+        let transcriptOpen = false;
 
-        function formatTime(seconds) {
-            const m = Math.floor(seconds / 60);
-            const s = Math.floor(seconds % 60);
-            return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+        // ── Helpers ──────────────────────────────────────────
+        function fmt(sec) {
+            const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+            return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
         }
 
-        function renderTranscript(data) {
-            transcriptEl.innerHTML = "";
-            for (const seg of data.segments) {
-                const div = document.createElement("div");
-                div.className = "utterance";
-                div.innerHTML = `
-                    <span class="timestamp">${formatTime(seg.start)} – ${formatTime(seg.end)}</span>
-                    <span class="speaker">${seg.speaker}</span>
-                    <span class="text">${seg.text}</span>
-                `;
-                transcriptEl.appendChild(div);
+        function fmtDur(sec) {
+            if (sec == null) return null;
+            const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+            return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+        }
+
+        function esc(str) {
+            return String(str ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        }
+
+        function empty(msg) { return `<p class="empty">${msg}</p>`; }
+
+        function toneChip(tone) {
+            const t = (tone || "neutral").toLowerCase();
+            return `<span class="tone-chip tone-${t}">${esc(tone || "neutral")}</span>`;
+        }
+
+        function severityBadge(sev) {
+            const map = { low: "badge-yellow", medium: "badge-orange", high: "badge-high" };
+            const cls = map[(sev || "").toLowerCase()] || "badge-yellow";
+            return `<span class="badge ${cls}">${esc(sev || "—")}</span>`;
+        }
+
+        // ── Transcript toggle ─────────────────────────────────
+        function toggleTranscript() {
+            transcriptOpen = !transcriptOpen;
+            const content = document.getElementById("content");
+            const btn = document.getElementById("btn-transcript");
+            if (transcriptOpen) {
+                content.className = "split";
+                btn.classList.add("active");
+            } else {
+                content.className = "single";
+                btn.classList.remove("active");
             }
         }
 
+        function buildRawTranscript(segments) {
+            const el = document.getElementById("raw-transcript");
+            const utts = [];
+            for (const seg of segments) {
+                for (const u of (seg.utterances || [])) {
+                    utts.push(u);
+                }
+            }
+            utts.sort((a, b) => a.start - b.start);
+            if (!utts.length) { el.innerHTML = empty("No utterances."); return; }
+            el.innerHTML = utts.map(u => `
+                <div class="raw-utterance">
+                    <span class="raw-time">${fmt(u.start)}</span>
+                    <span class="raw-speaker">${esc(u.speaker)}</span>
+                    <span class="raw-text">${esc(u.text)}</span>
+                </div>`).join("");
+        }
+
+        // ── Pipeline status ──────────────────────────────────
+        function updatePipelineStatus(ps) {
+            const order = ["segmentation", "extractor", "output_generator"];
+            let foundActive = false;
+            for (const key of order) {
+                const el = document.getElementById(`node-${key}`);
+                if (!el) continue;
+                if (ps && ps[key] === "complete") {
+                    el.className = "pipeline-node done";
+                } else if (!foundActive) {
+                    el.className = "pipeline-node active";
+                    foundActive = true;
+                }
+            }
+        }
+
+        // ── Sections ─────────────────────────────────────────
+        function renderHeader(data) {
+            const meta = document.getElementById("page-meta");
+            const parts = [];
+            if (data.language) parts.push(`Language: <b style="color:#aaa">${esc(data.language)}</b>`);
+            if (data.duration != null) parts.push(`Duration: <b style="color:#aaa">${fmtDur(data.duration)}</b>`);
+            meta.innerHTML = parts.map(p => `<span>${p}</span>`).join("");
+
+            const segs = (data.segments || []).length;
+            const dec  = (data.decisions || []).length;
+            const ai   = (data.action_items || []).length;
+            const qs   = (data.questions || []).length;
+            document.getElementById("summary-bar").innerHTML = [
+                `<span class="summary-pill"><b>${segs}</b> segments</span>`,
+                `<span class="summary-pill"><b>${dec}</b> decisions</span>`,
+                `<span class="summary-pill"><b>${ai}</b> action items</span>`,
+                `<span class="summary-pill"><b>${qs}</b> questions</span>`,
+            ].join("");
+        }
+
+        function renderSegments(segments) {
+            const el = document.getElementById("segments-list");
+            if (!segments.length) { el.innerHTML = empty("No segments found."); return; }
+            el.innerHTML = segments.map((seg, i) => {
+                const utts = (seg.utterances || []).map(u => `
+                    <div class="utterance">
+                        <span class="utt-time">${fmt(u.start)}</span>
+                        <span class="utt-speaker">${esc(u.speaker)}</span>
+                        <span class="utt-text">${esc(u.text)}</span>
+                    </div>`).join("");
+                return `
+                <div class="segment" id="seg-${i}">
+                    <button class="segment-toggle" onclick="toggleSegment(${i})">
+                        <span class="seg-left">
+                            <span class="seg-chevron">&#9658;</span>
+                            <span class="seg-label">${esc(seg.label)}</span>
+                        </span>
+                        <span class="seg-time">${fmt(seg.start)} – ${fmt(seg.end)}</span>
+                    </button>
+                    ${seg.summary ? `<div class="seg-summary">${esc(seg.summary)}</div>` : ""}
+                    <div class="utterances">${utts}</div>
+                </div>`;
+            }).join("");
+        }
+
+        function toggleSegment(i) {
+            const el = document.getElementById(`seg-${i}`);
+            if (el) el.classList.toggle("open");
+        }
+
+        function renderQuestions(questions) {
+            const el = document.getElementById("questions-list");
+            if (!questions.length) { el.innerHTML = empty("No questions detected."); return; }
+            el.innerHTML = questions.map(q => {
+                const badge = q.answered
+                    ? `<span class="badge badge-green">&#10003; Answered</span>`
+                    : `<span class="badge badge-red">&#10007; Unanswered</span>`;
+                return `
+                <div class="card">
+                    <div class="card-body">${esc(q.text)}</div>
+                    <div class="card-footer">
+                        ${q.asked_by ? `<span>Asked by <span class="accent">${esc(q.asked_by)}</span></span>` : ""}
+                        ${badge}
+                        ${q.answered && q.answered_by ? `<span>by <span class="accent">${esc(q.answered_by)}</span></span>` : ""}
+                    </div>
+                    ${q.answer_summary ? `<div style="margin-top:0.5rem;font-size:0.81rem;color:#777;line-height:1.4">${esc(q.answer_summary)}</div>` : ""}
+                </div>`;
+            }).join("");
+        }
+
+        function renderActionItems(items) {
+            const el = document.getElementById("action-items-list");
+            if (!items.length) { el.innerHTML = empty("No action items detected."); return; }
+            const rows = items.map(a => `
+                <tr>
+                    <td>${esc(a.description)}</td>
+                    <td>${a.assignee ? `<span class="accent">${esc(a.assignee)}</span>` : `<span class="null-val">—</span>`}</td>
+                    <td>${a.deadline  ? esc(a.deadline)  : `<span class="null-val">—</span>`}</td>
+                    <td>${a.priority  ? esc(a.priority)  : `<span class="null-val">—</span>`}</td>
+                </tr>`).join("");
+            el.innerHTML = `
+                <table class="ai-table">
+                    <thead><tr>
+                        <th>Task</th><th>Assignee</th><th>Deadline</th><th>Priority</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        function renderDecisions(decisions) {
+            const el = document.getElementById("decisions-list");
+            if (!decisions.length) { el.innerHTML = empty("No decisions detected."); return; }
+            el.innerHTML = decisions.map(d => {
+                const pct = d.confidence != null ? Math.round(d.confidence * 100) : null;
+                const conf = pct != null ? `
+                    <span class="conf-wrap">
+                        <span class="conf-track"><span class="conf-fill" style="width:${pct}%"></span></span>
+                        <span class="conf-pct">${pct}%</span>
+                    </span>` : "";
+                return `
+                <div class="card">
+                    <div class="card-body">${esc(d.description)}</div>
+                    <div class="card-footer">
+                        ${d.made_by ? `<span>By <span class="accent">${esc(d.made_by)}</span></span>` : ""}
+                        ${conf}
+                    </div>
+                </div>`;
+            }).join("");
+        }
+
+        function renderConflicts(conflicts) {
+            if (!conflicts.length) return;
+            document.getElementById("conflicts-section").style.display = "";
+            const el = document.getElementById("conflicts-list");
+            el.innerHTML = conflicts.map(c => `
+                <div class="card">
+                    <div class="card-footer" style="margin-bottom:0.5rem">
+                        ${c.topic ? `<span>Topic: <span class="accent">${esc(c.topic)}</span></span>` : ""}
+                        ${severityBadge(c.severity)}
+                    </div>
+                    <div class="conflict-grid">
+                        <div class="conflict-side">
+                            <div class="conflict-spk">${esc(c.speaker_a)}</div>
+                            <div class="conflict-stmt">${esc(c.speaker_a_statement)}</div>
+                        </div>
+                        <div class="conflict-side">
+                            <div class="conflict-spk">${esc(c.speaker_b)}</div>
+                            <div class="conflict-stmt">${esc(c.speaker_b_statement)}</div>
+                        </div>
+                    </div>
+                </div>`).join("");
+        }
+
+        function renderSentiment(sentiments, segments) {
+            const el = document.getElementById("sentiment-list");
+            if (!sentiments.length) { el.innerHTML = empty("No sentiment data."); return; }
+            const segLabels = (segments || []).map(s => s.label);
+            el.innerHTML = sentiments.map(s => {
+                const label = segLabels[s.segment_index] || `Segment ${s.segment_index}`;
+                const speakers = s.speakers_sentiment
+                    ? Object.entries(s.speakers_sentiment).map(([spk, tone]) =>
+                        `<span class="speaker-tag"><span class="speaker-name">${esc(spk)}</span>${toneChip(tone)}</span>`
+                      ).join("")
+                    : "";
+                return `
+                <div class="card">
+                    <div class="card-footer" style="margin-bottom:${speakers ? "0.5rem" : "0"}">
+                        <span style="color:#888">${esc(label)}</span>
+                        ${toneChip(s.tone)}
+                    </div>
+                    ${speakers ? `<div class="speaker-tags">${speakers}</div>` : ""}
+                </div>`;
+            }).join("");
+        }
+
+        // ── Render all ───────────────────────────────────────
+        function render(data) {
+            document.getElementById("loading").style.display = "none";
+            const content = document.getElementById("content");
+            content.className = "single";
+            content.style.display = "block";
+            document.getElementById("btn-transcript").style.display = "";
+
+            renderHeader(data);
+            buildRawTranscript(data.segments || []);
+            renderSegments(data.segments || []);
+            renderQuestions(data.questions || []);
+            renderActionItems(data.action_items || []);
+            renderDecisions(data.decisions || []);
+            renderConflicts(data.conflicts || []);
+            renderSentiment(data.sentiments || [], data.segments || []);
+        }
+
+        // ── Polling ──────────────────────────────────────────
         async function poll() {
             try {
                 const res = await fetch(`/api/meeting/${meetingId}`);
+
                 if (res.status === 202) {
-                    statusEl.textContent = "Processing...";
-                    statusEl.className = "";
+                    try {
+                        const body = await res.json();
+                        updatePipelineStatus(body.pipeline_status || {});
+                    } catch (_) {}
                     setTimeout(poll, 2000);
                     return;
                 }
+
                 if (!res.ok) {
-                    const err = await res.json();
-                    statusEl.textContent = `Error: ${err.detail || res.statusText}`;
-                    statusEl.className = "error";
+                    const err = await res.json().catch(() => ({}));
+                    document.getElementById("loading").style.display = "none";
+                    const box = document.getElementById("error-box");
+                    box.style.display = "";
+                    box.textContent = `Error: ${err.detail || res.statusText}`;
                     return;
                 }
-                const data = await res.json();
-                statusEl.textContent = `Complete — ${data.segments.length} segments`;
-                statusEl.className = "complete";
-                renderTranscript(data);
+
+                render(await res.json());
             } catch (e) {
-                statusEl.textContent = `Error: ${e.message}`;
-                statusEl.className = "error";
                 setTimeout(poll, 3000);
             }
         }

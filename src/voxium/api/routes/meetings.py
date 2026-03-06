@@ -35,22 +35,39 @@ class StatusResponse(BaseModel):
     error: str | None = Field(default=None, description="Error message if processing failed")
 
 
-def _run_transcription(meeting_id: str, audio_path: str, ctx: AppContext) -> None:
-    """Run transcription in a background thread."""
+def _run_pipeline(meeting_id: str, audio_path: str, ctx: AppContext) -> None:
+    """Transcribe audio then invoke the intelligence graph in a background thread."""
     try:
         logger.info("Starting transcription for meeting %s", meeting_id)
         transcript = ctx.transcription_service.transcribe(audio_path)
-
-        meetings[meeting_id]["utterances"] = [
-            u.model_dump() for u in transcript.utterances
-        ]
-        meetings[meeting_id]["language"] = transcript.language
-        meetings[meeting_id]["duration"] = transcript.duration
-        meetings[meeting_id]["status"] = "complete"
         logger.info("Transcription complete for meeting %s", meeting_id)
 
+        initial_state = {
+            "transcript": transcript,
+            "llm_router": ctx.llm_router,
+            "pipeline_status": {},
+            "iteration": 0,
+        }
+
+        logger.info("Invoking intelligence graph for meeting %s", meeting_id)
+        final_state = ctx.graph.invoke(initial_state)
+
+        meetings[meeting_id].update({
+            "status": "complete",
+            "language": transcript.language,
+            "duration": transcript.duration,
+            "segments": [s.model_dump() for s in final_state.get("segments", [])],
+            "decisions": [d.model_dump() for d in final_state.get("decisions", [])],
+            "action_items": [a.model_dump() for a in final_state.get("action_items", [])],
+            "questions": [q.model_dump() for q in final_state.get("questions", [])],
+            "conflicts": [c.model_dump() for c in final_state.get("conflicts", [])],
+            "sentiments": [s.model_dump() for s in final_state.get("sentiments", [])],
+            "pipeline_status": final_state.get("pipeline_status", {}),
+        })
+        logger.info("Pipeline complete for meeting %s", meeting_id)
+
     except Exception as exc:
-        logger.exception("Transcription failed for meeting %s", meeting_id)
+        logger.exception("Pipeline failed for meeting %s", meeting_id)
         meetings[meeting_id]["status"] = "error"
         meetings[meeting_id]["error"] = str(exc)
 
@@ -89,7 +106,7 @@ async def analyze_meeting(
     meeting_id: str,
     ctx: AppContext = Depends(get_context),
 ) -> StatusResponse:
-    """Start transcription analysis for an uploaded meeting."""
+    """Start transcription and intelligence pipeline for an uploaded meeting."""
     if meeting_id not in meetings:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
@@ -104,7 +121,7 @@ async def analyze_meeting(
     meeting["error"] = None
 
     thread = threading.Thread(
-        target=_run_transcription,
+        target=_run_pipeline,
         args=(meeting_id, meeting["audio_path"], ctx),
         daemon=True,
     )
@@ -125,7 +142,7 @@ async def meeting_status(meeting_id: str) -> StatusResponse:
 
 @router.get("/api/meeting/{meeting_id}")
 async def get_meeting(meeting_id: str) -> dict:
-    """Get full meeting data. Returns 202 if still processing."""
+    """Get full meeting intelligence results. Returns 202 if still processing."""
     if meeting_id not in meetings:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
@@ -137,8 +154,14 @@ async def get_meeting(meeting_id: str) -> dict:
         "meeting_id": meeting_id,
         "status": meeting["status"],
         "language": meeting.get("language"),
-        "segments": meeting.get("utterances", []),
         "duration": meeting.get("duration"),
+        "segments": meeting.get("segments", []),
+        "decisions": meeting.get("decisions", []),
+        "action_items": meeting.get("action_items", []),
+        "questions": meeting.get("questions", []),
+        "conflicts": meeting.get("conflicts", []),
+        "sentiments": meeting.get("sentiments", []),
+        "pipeline_status": meeting.get("pipeline_status", {}),
     }
 
 
